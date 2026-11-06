@@ -1,7 +1,7 @@
 import numpy as np
 
-from model_trainer import augpreview
-from model_trainer.datasets import formats
+from training_synth import augpreview
+from training_synth.datasets import formats
 
 
 def test_mask_polygons_overlap_and_separate():

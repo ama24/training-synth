@@ -2,9 +2,9 @@ import csv
 
 import pytest
 
-from model_trainer.datasets import formats, health, prepare, store
-from model_trainer.datasets.prepare import ClassPlan, SplitPlan
-from model_trainer.util import read_yaml
+from training_synth.datasets import formats, health, prepare, store
+from training_synth.datasets.prepare import ClassPlan, SplitPlan
+from training_synth.util import read_yaml
 
 
 def test_yolo_seg_is_read(yolo_seg):

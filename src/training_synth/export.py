@@ -16,7 +16,7 @@ from .evaluate import MAIN_METRIC, _data_arg, validate
 from .runs.store import Run
 from .util import now, read_json, write_json
 
-log = logging.getLogger("model_trainer.export")
+log = logging.getLogger("training_synth.export")
 
 FORMATS: dict[str, dict[str, Any]] = {
     "onnx": {

@@ -27,7 +27,7 @@ from PIL import Image
 
 from ..util import IMAGE_EXTS, read_yaml
 
-log = logging.getLogger("model_trainer.datasets")
+log = logging.getLogger("training_synth.datasets")
 
 SPLITS = ("train", "val", "test")
 TASKS = ("detect", "segment", "pose", "obb", "classify")
@@ -76,6 +76,9 @@ class Dataset:
     kpt_shape: list[int] | None = None
     flip_idx: list[int] | None = None
     source: str = ""  # the yaml / json / folder it was read from
+    # files the dataset wants in every model package (yaml key `package_files`, e.g. a class
+    # list or a parts table a downstream program reads): name -> path
+    package_files: dict[str, Path] = field(default_factory=dict)
 
     def tasks(self) -> dict[str, str]:
         """Tasks the labels can support -> '' if fine, else the reason it is not possible."""
@@ -422,7 +425,23 @@ def load_yolo(src: Path, label_kind: str | None = None) -> Dataset:
         kpt_shape=list(kpt_shape) if kpt_shape else None,
         flip_idx=cfg.get("flip_idx"),
         source=str(yaml_path or src),
+        package_files=_package_files(cfg.get("package_files"), base, yaml_path),
     )
+
+
+def _package_files(names: Any, base: Path, yaml_path: Path | None) -> dict[str, Path]:
+    """`package_files: [a.yaml, b.json]`: plain file names next to the images (the yaml's `path`)
+    or next to the yaml; missing ones are left out with a warning."""
+    out: dict[str, Path] = {}
+    for n in names if isinstance(names, list) else []:
+        name = Path(str(n)).name  # a name only: never a path out of the dataset
+        places = [base / name] + ([yaml_path.parent / name] if yaml_path else [])
+        found = [p for p in places if p.is_file()]
+        if found:
+            out[name] = found[0]
+        else:
+            log.warning("package file %s listed in the dataset yaml is missing", name)
+    return out
 
 
 # -------------------------------------------------------------------------------- COCO

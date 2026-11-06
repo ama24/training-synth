@@ -1,6 +1,6 @@
 """Phone notifications through ntfy (https://ntfy.sh): free, no account.
 
-Install the ntfy app, subscribe to a private, hard-to-guess topic name (e.g. `mtrain-k39xq7`), and put
+Install the ntfy app, subscribe to a private, hard-to-guess topic name (e.g. `training-synth-k39xq7`), and put
 the same name in Settings. Anyone who knows the topic can read the messages, so keep it secret.
 """
 
@@ -11,7 +11,7 @@ import urllib.request
 from collections.abc import Mapping
 from typing import Any
 
-log = logging.getLogger("model_trainer.notify")
+log = logging.getLogger("training_synth.notify")
 
 PRIORITY = {
     "finished": "default",

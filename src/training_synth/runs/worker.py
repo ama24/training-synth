@@ -1,6 +1,6 @@
 """The training worker: one process per run, started by the manager, never inside the GUI.
 
-    python -m model_trainer.runs.worker <run folder> [start|resume|extend:<epochs>]
+    python -m training_synth.runs.worker <run folder> [start|resume|extend:<epochs>]
 
 What makes runs safe:
 - after every epoch a full checkpoint (with the optimizer) is copied atomically to
@@ -48,7 +48,7 @@ from ..workspace import Project, Workspace
 from .config import RunConfig
 from .store import HEARTBEAT_S, Run
 
-log = logging.getLogger("model_trainer.worker")
+log = logging.getLogger("training_synth.worker")
 
 MIN_FREE_GB = 2.0
 
@@ -104,7 +104,7 @@ class Worker:
             env["ultralytics"] = ultralytics.__version__
         from .. import __version__
 
-        env["model_trainer"] = __version__
+        env["training_synth"] = __version__
         write_json(self.run.path / "env.json", env)
 
     # ------------------------------------------------------------------------ dataset

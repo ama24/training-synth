@@ -23,10 +23,21 @@ from typing import Any
 
 import numpy as np
 
-from ..util import link_or_copy, now, read_json, sha1_file, write_json, write_text, write_yaml
+from ..util import (
+    atomic_copy,
+    link_or_copy,
+    now,
+    read_json,
+    sha1_file,
+    write_json,
+    write_text,
+    write_yaml,
+)
 from .formats import SPLITS, Dataset, Item, Obj
 
-log = logging.getLogger("model_trainer.prepare")
+PACKAGE_FILES = "package_files"  # folder in the run dataset: the dataset's files for the package
+
+log = logging.getLogger("training_synth.prepare")
 
 
 @dataclass
@@ -352,6 +363,8 @@ def prepare(
             if ds.flip_idx:
                 data["flip_idx"] = ds.flip_idx
     write_yaml(yaml_path, data)
+    for name, src in ds.package_files.items():  # kept with the run, for its model package
+        atomic_copy(src, out / PACKAGE_FILES / name)  # a copy: the dataset may change later
     manifest = {
         "created": now(),
         "source_dataset": ds.name,
@@ -367,6 +380,7 @@ def prepare(
         if task != "classify"
         else None,
         "skipped": dict(skipped),
+        "package_files": sorted(ds.package_files),
         "settings": {
             "classes": vars(classes),
             "split": vars(split),

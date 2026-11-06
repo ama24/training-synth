@@ -6,8 +6,8 @@ import pytest
 from nicegui import ui
 from nicegui.testing.user_simulation import user_simulation
 
-from model_trainer.datasets import store
-from model_trainer.runs.store import Run
+from training_synth.datasets import store
+from training_synth.runs.store import Run
 
 
 @pytest.fixture
@@ -21,8 +21,8 @@ def app_main(tmp_path, workspace, yolo_seg):
     store.import_dataset(workspace.project("default"), yolo_seg, name="shapes")
     main = tmp_path / "main.py"
     main.write_text(
-        "from model_trainer.gui.app import run_app\n"
-        "from model_trainer.workspace import Workspace\n"
+        "from training_synth.gui.app import run_app\n"
+        "from training_synth.workspace import Workspace\n"
         f"run_app(Workspace(r'{workspace.root}'), show=False)\n"
     )
     return main
@@ -70,8 +70,8 @@ async def test_wizard_creates_a_run(app_main, workspace):
 
 @pytest.mark.anyio
 async def test_run_page_of_created_run(app_main, workspace):
-    from model_trainer.runs.config import RunConfig
-    from model_trainer.runs.manager import Manager
+    from training_synth.runs.config import RunConfig
+    from training_synth.runs.manager import Manager
 
     run = Manager(workspace).create(
         workspace.project("default"),

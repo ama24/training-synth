@@ -1,7 +1,7 @@
 # Your first model: a walkthrough
 
 This guide takes you from a folder of labelled images to a model you can use, and explains each decision on the
-way. Run `mtrain gui`, and keep **Simple** mode on (top right) for your first run.
+way. Run `training-synth gui`, and keep **Simple** mode on (top right) for your first run.
 
 ## 1. Import the dataset
 

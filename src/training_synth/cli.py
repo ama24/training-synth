@@ -1,14 +1,14 @@
-"""mtrain: everything the GUI does, from the terminal.
+"""training-synth: everything the GUI does, from the terminal.
 
-mtrain gui                                   open the app in the browser
-mtrain dataset import <folder|yaml|json>     register a dataset (YOLO, COCO, class folders)
-mtrain dataset list | check <name>           health report in the terminal
-mtrain run new --dataset shapes --task detect --model yolo26n --epochs 100 [--start]
-mtrain run list | status | start | pause | resume | stop | extend | eval | export | copy | delete
-mtrain predict --run <id> --source <images>  playground in the terminal
-mtrain sweep create | start | results        hyperparameter sweeps
-mtrain remote check | bench                  SSH machines and Raspberry Pi benchmarks
-mtrain notify-test                           send a test notification to your phone
+training-synth gui                                   open the app in the browser
+training-synth dataset import <folder|yaml|json>     register a dataset (YOLO, COCO, class folders)
+training-synth dataset list | check <name>           health report in the terminal
+training-synth run new --dataset shapes --task detect --model yolo26n --epochs 100 [--start]
+training-synth run list | status | start | pause | resume | stop | extend | eval | export | copy | delete
+training-synth predict --run <id> --source <images>  playground in the terminal
+training-synth sweep create | start | results        hyperparameter sweeps
+training-synth remote check | bench                  SSH machines and Raspberry Pi benchmarks
+training-synth notify-test                           send a test notification to your phone
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def _run(ws: Workspace, run_id: str):
         if len(matches) == 1:
             p = matches[0]
     if p is None:
-        raise SystemExit(f"no run {run_id!r} (mtrain run list)")
+        raise SystemExit(f"no run {run_id!r} (training-synth run list)")
     return Run(p)
 
 
@@ -272,7 +272,9 @@ def cmd_sweep(args: argparse.Namespace) -> int:
             args.budget_hours,
             name=args.name,
         )
-        _out(f"sweep {s['id']}: {len(s['runs'])} runs created (mtrain sweep start {s['id']})")
+        _out(
+            f"sweep {s['id']}: {len(s['runs'])} runs created (training-synth sweep start {s['id']})"
+        )
     elif args.action == "start":
         _out(sweeps.start_sweep(ws, args.id))
     elif args.action == "results":
@@ -301,7 +303,7 @@ def cmd_remote(args: argparse.Namespace) -> int:
 def cmd_notify(args: argparse.Namespace) -> int:
     from .notify import send
 
-    ok = send(_ws(args).settings(), "test", "model-trainer", "Test notification: it works.")
+    ok = send(_ws(args).settings(), "test", "training-synth", "Test notification: it works.")
     _out("sent" if ok else "not sent: set a topic in the Settings page (or settings.json)")
     return 0 if ok else 1
 
@@ -319,12 +321,15 @@ def cmd_gui(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
-        "--workspace", help="workspace folder (default MTRAIN_HOME or ~/model-trainer-workspace)"
+        "--workspace",
+        help="workspace folder (default TRAINING_SYNTH_HOME or ~/training-synth-workspace)",
     )
     common.add_argument("--project", help="project name (default: the last one used)")
     common.add_argument("-v", "--verbose", action="store_true")
     p = argparse.ArgumentParser(
-        prog="mtrain", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="training-synth",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = p.add_subparsers(dest="command", required=True)
 

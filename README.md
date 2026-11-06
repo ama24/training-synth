@@ -1,4 +1,4 @@
-# model-trainer
+# training-synth
 
 A friendly, generic app for training YOLO models: detection, segmentation, pose (keypoints), rotated boxes (OBB)
 and classification.
@@ -18,22 +18,23 @@ parameter, raw YAML, sweeps and a CLI (**Advanced** mode).
 Requirements: Python 3.10-3.12, and an NVIDIA GPU with a recent driver (training on the CPU works, but slowly).
 
 ```bash
-git clone https://github.com/ama24/model-trainer.git
-cd model-trainer
+git clone https://github.com/ama24/training-synth.git
+cd training-synth
 python -m venv .venv
 .venv\Scripts\activate                 # Linux: source .venv/bin/activate
 # PyTorch with CUDA first (pick the right CUDA version on pytorch.org; this is CUDA 12.4):
 pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -e ".[export,dev]"
-mtrain gui                              # opens http://localhost:8090
+training-synth gui                              # opens http://localhost:8090
 ```
 
 To reproduce the exact tested environment, install the pinned versions instead:
 `pip install -r requirements.lock.txt`.
 
 Everything (datasets, runs, settings) lives in the **workspace** folder:
-- default: `~/model-trainer-workspace`;
-- or set `MTRAIN_HOME`, or pass `--workspace`.
+- default: `~/training-synth-workspace` (a `~/model-trainer-workspace` from before the rename keeps
+  being used);
+- or set `TRAINING_SYNTH_HOME` (the old `MTRAIN_HOME` still works), or pass `--workspace`.
 
 ## What it does
 
@@ -67,16 +68,16 @@ Everything (datasets, runs, settings) lives in the **workspace** folder:
 ## Command line
 
 ```bash
-mtrain dataset import path/to/dataset --name parts
-mtrain dataset check parts --imgsz 1024
-mtrain run new --dataset parts --model yolo26s --epochs 100 --imgsz 1024 --start
-mtrain run list
-mtrain run status <run> --follow
-mtrain run pause <run>      # / resume / stop / extend --epochs 200
-mtrain run export <run> --format onnx --precision fp16
-mtrain predict --run <run> --source photos/
-mtrain sweep create --base <run> --space space.yaml --mode grid --budget-hours 8
-mtrain notify-test
+training-synth dataset import path/to/dataset --name parts
+training-synth dataset check parts --imgsz 1024
+training-synth run new --dataset parts --model yolo26s --epochs 100 --imgsz 1024 --start
+training-synth run list
+training-synth run status <run> --follow
+training-synth run pause <run>      # / resume / stop / extend --epochs 200
+training-synth run export <run> --format onnx --precision fp16
+training-synth predict --run <run> --source photos/
+training-synth sweep create --base <run> --space space.yaml --mode grid --budget-hours 8
+training-synth notify-test
 ```
 
 ## Using the models elsewhere
@@ -85,9 +86,13 @@ A finished run has a **model package** in `<run>/package/`:
 - `best.pt`;
 - the exports;
 - `model_card.json`: task, classes in order, image size, scores, recommended confidence, the dataset fingerprint and
-  class mapping, the training settings and versions.
+  class mapping, the training settings and versions;
+- the dataset's own extra files, if its yaml lists them as `package_files: [classes.yaml, parts.json]`
+  (screw-synth does): copied when the run starts, so the package keeps the versions it was trained with, and
+  listed in the card under `package_files`.
 
-Check the class list in the card before using a model in another project.
+To use the model elsewhere, zip the `package` folder. Check the class list in the card before using a model in
+another project.
 
 ## Development
 
