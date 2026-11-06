@@ -19,7 +19,7 @@ from ..workspace import Project, safe_name
 from . import formats, health
 from .formats import Dataset
 
-log = logging.getLogger("model_trainer.datasets")
+log = logging.getLogger("training_synth.datasets")
 
 _CACHE: dict[tuple[str, str], Dataset] = {}
 

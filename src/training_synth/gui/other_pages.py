@@ -189,7 +189,7 @@ class Playground:
         self.run_b: str | None = None
         self.files: list[Path] = []
         self.conf, self.iou = 0.25, 0.7
-        self.tmp = Path(tempfile.mkdtemp(prefix="mtrain_play_"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="training_synth_play_"))
         self.last_preds: list[Any] = []
 
     def build(self) -> None:
@@ -476,7 +476,7 @@ def settings_page() -> None:
         ui.label("Phone notifications").classes("text-xl font-bold")
         ui.markdown(
             "1. Install the free **ntfy** app (Android / iPhone).\n"
-            "2. In the app, subscribe to a topic with a private, hard-to-guess name, e.g. `mtrain-k39xq7`.\n"
+            "2. In the app, subscribe to a topic with a private, hard-to-guess name, e.g. `training-synth-k39xq7`.\n"
             "3. Put the same name below and press *Send test*.\n\n"
             "Anyone who knows the topic name can read the messages, so keep it secret."
         )
@@ -506,7 +506,7 @@ def settings_page() -> None:
 
         def test() -> None:
             save()
-            ok = send(ws().settings(), "test", "model-trainer", "Test notification: it works.")
+            ok = send(ws().settings(), "test", "training-synth", "Test notification: it works.")
             ui.notify(
                 "Sent - check your phone"
                 if ok
@@ -520,7 +520,7 @@ def settings_page() -> None:
         ui.separator()
         ui.label("Other machines (SSH)").classes("text-xl font-bold")
         ui.markdown(
-            "Train on another computer, or time exported models on a Raspberry Pi. The machine needs model-trainer "
+            "Train on another computer, or time exported models on a Raspberry Pi. The machine needs training-synth "
             "installed and SSH key login (no password). *Experimental.*"
         )
         remotes = list(s.get("remotes") or [])
@@ -564,7 +564,7 @@ def settings_page() -> None:
                     ("host", ""),
                     ("user", ""),
                     ("port", "22"),
-                    ("workdir", "~/model-trainer-workspace"),
+                    ("workdir", "~/training-synth-workspace"),
                     ("python", "python3"),
                 )
             }

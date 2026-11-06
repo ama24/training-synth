@@ -1,4 +1,4 @@
-"""The browser app: `mtrain gui` (http://localhost:8090)."""
+"""The browser app: `training-synth gui` (http://localhost:8090)."""
 
 from __future__ import annotations
 
@@ -52,10 +52,10 @@ def run_app(ws: Workspace, port: int = 8090, show: bool = True) -> None:
     common.STATE["ws"] = ws
     register_pages()
     ui.run(
-        title="model-trainer",
+        title="training-synth",
         port=port,
         show=show,
         reload=False,
         favicon="🧠",
-        storage_secret=f"model-trainer:{ws.root}",
+        storage_secret=f"training-synth:{ws.root}",
     )

@@ -1,6 +1,6 @@
 """Where everything lives on disk.
 
-<workspace>/                        MTRAIN_HOME, --workspace, or ~/model-trainer-workspace
+<workspace>/                        TRAINING_SYNTH_HOME, --workspace, or ~/training-synth-workspace
   settings.json                     notifications, remote machines, last project
   queue.json                        runs waiting to start (one at a time per machine)
   cache/thumbs/                     gallery thumbnails
@@ -41,9 +41,19 @@ def safe_name(name: str) -> str:
     return s or "unnamed"
 
 
+HOME_ENV = "TRAINING_SYNTH_HOME"
+OLD_HOME_ENV = "MTRAIN_HOME"  # before the rename (model-trainer)
+OLD_FOLDER = "model-trainer-workspace"
+
+
 def default_root() -> Path:
-    env = os.environ.get("MTRAIN_HOME")
-    return Path(env).expanduser() if env else Path.home() / "model-trainer-workspace"
+    """$TRAINING_SYNTH_HOME (or the old $MTRAIN_HOME), else ~/training-synth-workspace; a
+    workspace made before the rename (~/model-trainer-workspace) keeps being used where it is."""
+    env = os.environ.get(HOME_ENV) or os.environ.get(OLD_HOME_ENV)
+    if env:
+        return Path(env).expanduser()
+    new, old = Path.home() / "training-synth-workspace", Path.home() / OLD_FOLDER
+    return old if old.is_dir() and not new.exists() else new
 
 
 @dataclass

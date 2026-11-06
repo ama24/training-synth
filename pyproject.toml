@@ -3,7 +3,7 @@ requires = ["hatchling>=1.18"]
 build-backend = "hatchling.build"
 
 [project]
-name = "model-trainer"
+name = "training-synth"
 version = "0.1.0"
 description = "Friendly, generic app to train YOLO models: dataset health, guided training with pause/resume, evaluation, export"
 readme = "README.md"
@@ -23,10 +23,10 @@ export = ["onnx>=1.16", "onnxruntime>=1.18"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
-mtrain = "model_trainer.cli:main"
+training-synth = "training_synth.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/model_trainer"]
+packages = ["src/training_synth"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -45,4 +45,4 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = ["E501", "B905", "B008", "SIM117"]  # nested `with` is how NiceGUI layouts read
 
 [tool.ruff.lint.isort]
-known-first-party = ["model_trainer"]
+known-first-party = ["training_synth"]

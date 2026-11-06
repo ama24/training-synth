@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-log = logging.getLogger("model_trainer")
+log = logging.getLogger("training_synth")
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 

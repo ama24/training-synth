@@ -1,4 +1,4 @@
-# model-trainer: design
+# training-synth: design
 
 Status: approved 2026-10-29; phases 1-3 implemented 2026-10-30 (see README for what exists; SSH training is experimental).
 
@@ -199,7 +199,7 @@ Every step can be saved as a template.
 
 ## Decisions
 
-- **Name and visibility:** public repository `model-trainer`.
+- **Name and visibility:** public repository `training-synth`.
 - **Licence:** AGPL-3.0, required because it builds on Ultralytics (AGPL-3.0).
 - **Phone notifications:** [ntfy](https://ntfy.sh). It's free, needs no account, and has an Android/iOS app; you
   subscribe to a private topic name. Telegram can be added later.

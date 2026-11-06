@@ -79,7 +79,7 @@ def frame(title: str) -> Iterator[None]:
     with ui.header().classes("items-center justify-between bg-slate-800 py-1"):
         with ui.row().classes("items-center gap-2"):
             ui.button(icon="menu", on_click=lambda: drawer.toggle()).props("flat round color=white")
-            ui.label("model-trainer").classes("text-lg font-bold")
+            ui.label("training-synth").classes("text-lg font-bold")
             ui.label(f"/ {title}").classes("text-md opacity-80")
         with ui.row().classes("items-center gap-3"):
             projects = sorted(set(ws().projects()) | {project().name})

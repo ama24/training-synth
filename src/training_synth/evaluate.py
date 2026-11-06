@@ -21,10 +21,11 @@ import numpy as np
 
 from .datasets.formats import parse_yolo_line
 from .datasets.health import LARGE_PX, SMALL_PX, iou
+from .datasets.prepare import PACKAGE_FILES
 from .runs.store import Run
 from .util import atomic_copy, now, read_json, read_yaml, sha1_file, write_json
 
-log = logging.getLogger("model_trainer.evaluate")
+log = logging.getLogger("training_synth.evaluate")
 
 MAIN_METRIC = {
     "detect": ("metrics/mAP50-95(B)", "mAP50-95"),
@@ -335,7 +336,7 @@ def package(run: Run, res: dict[str, Any] | None = None) -> Path:
     card = read_json(d / "model_card.json", {})
     card.update(
         {
-            "format": "model-trainer/1",
+            "format": "training-synth/1",
             "name": cfg.name,
             "run": run.id,
             "project": cfg.project,
@@ -375,5 +376,12 @@ def package(run: Run, res: dict[str, Any] | None = None) -> Path:
     data = (read_yaml(data_yaml) or {}) if data_yaml.is_file() else {}
     if data.get("kpt_shape"):
         card["kpt_shape"] = data["kpt_shape"]
+    extras = []  # the dataset's package_files (e.g. a class list, a parts table), next to best.pt
+    for name in manifest.get("package_files") or []:
+        src_file = run.data_dir / PACKAGE_FILES / name
+        if src_file.is_file():
+            atomic_copy(src_file, d / name)
+            extras.append(name)
+    card["package_files"] = extras
     write_json(d / "model_card.json", card)
     return d

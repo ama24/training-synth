@@ -1,7 +1,7 @@
 """Dataset health report: statistics plus checks, each explained in plain language.
 
 Every check returns a level (ok / info / warn / bad), the measured value, and three short texts:
-what it means, why it matters, and what to do. The GUI shows them as cards; `mtrain dataset check`
+what it means, why it matters, and what to do. The GUI shows them as cards; `training-synth dataset check`
 prints them.
 """
 

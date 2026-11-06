@@ -163,7 +163,7 @@ def folders_ds(tmp_path) -> Path:
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    from model_trainer.workspace import Workspace
+    from training_synth.workspace import Workspace
 
-    monkeypatch.setenv("MTRAIN_HOME", str(tmp_path / "ws"))
+    monkeypatch.setenv("TRAINING_SYNTH_HOME", str(tmp_path / "ws"))
     return Workspace(tmp_path / "ws")

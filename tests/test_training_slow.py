@@ -11,10 +11,10 @@ import time
 
 import pytest
 
-from model_trainer.datasets import store
-from model_trainer.runs.config import ModelChoice, RunConfig
-from model_trainer.runs.manager import Manager
-from model_trainer.runs.store import Run
+from training_synth.datasets import store
+from training_synth.runs.config import ModelChoice, RunConfig
+from training_synth.runs.manager import Manager
+from training_synth.runs.store import Run
 
 pytestmark = pytest.mark.slow
 FAST = {"imgsz": 128, "batch": 8, "workers": 0, "patience": 100}
@@ -87,7 +87,7 @@ def test_segment_pause_resume_extend_export(ws_with_data):
     mgr.extend(run, 7)
     _wait(run, ("done",))
     assert [m["epoch"] for m in run.metrics()][-2:] == [6, 7]
-    from model_trainer.export import export_model
+    from training_synth.export import export_model
 
     rec = export_model(run, "onnx", "fp32", bench_images=3)
     assert (

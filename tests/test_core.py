@@ -3,14 +3,14 @@ import zipfile
 
 import pytest
 
-from model_trainer import compare, models, notify, params, sweeps
-from model_trainer.cli import build_parser
-from model_trainer.evaluate import match_image, plain_summary
-from model_trainer.remote import Remote, launch_remote, send_command
-from model_trainer.runs import worker
-from model_trainer.runs.config import ModelChoice, RunConfig
-from model_trainer.runs.manager import Manager
-from model_trainer.runs.store import Run
+from training_synth import compare, models, notify, params, sweeps
+from training_synth.cli import build_parser
+from training_synth.evaluate import match_image, plain_summary
+from training_synth.remote import Remote, launch_remote, send_command
+from training_synth.runs import worker
+from training_synth.runs.config import ModelChoice, RunConfig
+from training_synth.runs.manager import Manager
+from training_synth.runs.store import Run
 
 
 def _cfg(**kw):
@@ -210,7 +210,7 @@ def test_remote_commands_are_built_without_running(workspace):
     (run.data_dir / "manifest.json").write_text('{"files": {}}')
     launch_remote(workspace, run, "start", fake)
     assert any(c[0] == "scp" and "-r" in c for c in calls)
-    assert "nohup py -m model_trainer.runs.worker" in calls[-1][-1]
+    assert "nohup py -m training_synth.runs.worker" in calls[-1][-1]
     assert run.state().get("remote") == "box"
     send_command(workspace, run, "pause", fake)
     assert calls[-1][-1].endswith("/command.json")
@@ -252,7 +252,7 @@ def test_cli_parses():
     )
     assert a.model == "yolo11s" and a.set == ["lr0=0.001"] and a.drop == ["circle"]
     assert p.parse_args(["run", "extend", "x", "--epochs", "200"]).epochs == 200
-    from model_trainer.cli import _parse_model, _value
+    from training_synth.cli import _parse_model, _value
 
     assert _parse_model("yolo26m") == ("yolo26", "m") and _parse_model("rtdetr-l") == (
         "rtdetr",
@@ -267,7 +267,7 @@ def test_cli_parses():
 
 
 def test_cli_dataset_commands(workspace, yolo_det, capsys):
-    from model_trainer.cli import main
+    from training_synth.cli import main
 
     assert (
         main(
@@ -351,7 +351,7 @@ def test_ram_cache_is_chosen_when_the_images_fit():
 
 
 def test_auto_cache_is_decided_at_the_start(workspace, monkeypatch):
-    from model_trainer.util import write_json
+    from training_synth.util import write_json
 
     run = Run.create(workspace.project("default"), _cfg())
     w = worker.Worker(run)

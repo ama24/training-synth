@@ -10,7 +10,7 @@ from typing import Any
 
 from PIL import Image
 
-log = logging.getLogger("model_trainer.predict")
+log = logging.getLogger("training_synth.predict")
 
 _MODELS: dict[str, Any] = {}
 VIDEO_EXTS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}

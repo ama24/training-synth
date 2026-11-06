@@ -20,7 +20,7 @@ from .datasets.formats import Dataset, Obj
 from .datasets.render import draw
 from .util import sha1_text
 
-log = logging.getLogger("model_trainer.augpreview")
+log = logging.getLogger("training_synth.augpreview")
 
 
 def preview_data(

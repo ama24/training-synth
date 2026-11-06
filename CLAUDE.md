@@ -1,4 +1,4 @@
-# CLAUDE.md — model-trainer
+# CLAUDE.md — training-synth
 
 A generic browser app (NiceGUI) and CLI for training YOLO-family models with Ultralytics. The design and the phase
 plan are in [docs/DESIGN.md](docs/DESIGN.md). Read it before changing anything.
@@ -6,7 +6,8 @@ plan are in [docs/DESIGN.md](docs/DESIGN.md). Read it before changing anything.
 ## Rules
 - **Generic:** no project-specific code (screws, cameras, ...). Projects exchange files with the trainer:
   - datasets in YOLO/COCO format go in;
-  - model packages come out (weights, exports, `model_card.json`).
+  - model packages come out (weights, exports, `model_card.json`, and the files the dataset yaml lists under
+    `package_files`, copied without reading them).
 - **Workflow:**
   - All code lives on `main`. Each piece of work gets a short-lived branch (`feature/<name>`, `fix/<name>`), then
     a PR into `main`, then the branch is deleted.

@@ -21,7 +21,7 @@ from ..workspace import Project, Workspace
 from .config import RunConfig
 from .store import ACTIVE, RESUMABLE, Run
 
-log = logging.getLogger("model_trainer.manager")
+log = logging.getLogger("training_synth.manager")
 
 
 class Manager:
@@ -160,7 +160,7 @@ class Manager:
             "preparing" if not (run.data_dir / "manifest.json").is_file() else "running", mode=mode
         )
         log_fh = run.log_path.open("ab")
-        cmd = [sys.executable, "-m", "model_trainer.runs.worker", str(run.path), mode]
+        cmd = [sys.executable, "-m", "training_synth.runs.worker", str(run.path), mode]
         if after:
             cmd.append(f"--after={after}")
         env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}

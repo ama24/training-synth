@@ -1,7 +1,7 @@
 """Train on another machine over SSH (experimental), and benchmark models on a Raspberry Pi.
 
 A remote is set up once in Settings: host, user, port, the folder to work in, and the Python that
-has model-trainer installed (`pip install model-trainer` or a clone + `pip install -e .`). The local
+has training-synth installed (`pip install training-synth` or a clone + `pip install -e .`). The local
 OpenSSH client (`ssh`, `scp`, built into Windows 10+) must be able to log in without a password
 (SSH key).
 
@@ -26,7 +26,7 @@ from .runs.store import Run
 from .util import write_json
 from .workspace import Workspace
 
-log = logging.getLogger("model_trainer.remote")
+log = logging.getLogger("training_synth.remote")
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess]
 SYNC_FILES = (
@@ -56,7 +56,7 @@ class Remote:
         self.host = spec["host"]
         self.user = spec.get("user") or ""
         self.port = int(spec.get("port") or 22)
-        self.workdir = spec.get("workdir") or "~/model-trainer-workspace"
+        self.workdir = spec.get("workdir") or "~/training-synth-workspace"
         self.python = spec.get("python") or "python3"
         self.runner = runner or _run
 
@@ -91,7 +91,7 @@ class Remote:
 
     def check(self) -> tuple[bool, str]:
         r = self.ssh(
-            f'{self.python} -c "import model_trainer, ultralytics, torch; print(torch.cuda.is_available())"'
+            f'{self.python} -c "import training_synth, ultralytics, torch; print(torch.cuda.is_available())"'
         )
         if r.returncode != 0:
             return False, (r.stderr or r.stdout).strip()[:300]
@@ -125,7 +125,7 @@ def launch_remote(ws: Workspace, run: Run, mode: str, runner: Runner | None = No
     if r.returncode != 0:
         raise RuntimeError(f"copying the run to {remote.name} failed: {r.stderr.strip()[:300]}")
     cmd = (
-        f"cd {shlex.quote(rdir)} && nohup {remote.python} -m model_trainer.runs.worker {shlex.quote(rdir)} {mode} "
+        f"cd {shlex.quote(rdir)} && nohup {remote.python} -m training_synth.runs.worker {shlex.quote(rdir)} {mode} "
         f">> log.txt 2>&1 < /dev/null &"
     )
     r = remote.ssh(cmd)
