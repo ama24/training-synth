@@ -124,6 +124,8 @@ the result, and train again on the hard cases.
 Each export is re-scored, so you can see whether FP16 or INT8 lost accuracy.
 
 The `package/` folder holds everything another program needs, including `model_card.json` with the class list.
+After an export, **Create zip** writes one zip into that folder, ready to copy to another program: the export,
+`model_card.json`, `exports.json` and the dataset's package files.
 
 ## When results are poor
 

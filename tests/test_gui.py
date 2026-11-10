@@ -86,6 +86,33 @@ async def test_run_page_of_created_run(app_main, workspace):
 
 
 @pytest.mark.anyio
+async def test_create_zip_button(app_main, workspace):
+    from training_synth.runs.config import RunConfig
+    from training_synth.runs.manager import Manager
+    from training_synth.util import write_json
+
+    run = Manager(workspace).create(
+        workspace.project("default"),
+        RunConfig(name="r1", project="default", dataset="shapes", task="detect"),
+    )
+    run.weights_dir.mkdir(parents=True)
+    (run.weights_dir / "best.pt").write_bytes(b"w")
+    model = run.package_dir / "exports" / "onnx_fp32" / "best.onnx"
+    model.parent.mkdir(parents=True)
+    model.write_bytes(b"onnx")
+    rec = {"format": "onnx", "precision": "fp32", "size_mb": 1, "path": str(model)}
+    write_json(run.package_dir / "exports.json", [rec])
+    write_json(run.package_dir / "model_card.json", {})
+    run.set_state("done")
+    async with user_simulation(main_file=app_main) as user:
+        await user.open(f"/run/{run.id}")
+        await user.should_see(marker="zip-onnx-fp32", retries=50)
+        user.find(marker="zip-onnx-fp32").click()
+        await user.should_see("Created", retries=100)
+    assert (run.package_dir / "r1_onnx.zip").is_file()
+
+
+@pytest.mark.anyio
 async def test_wizard_class_table_and_bulk_drop(app_main):
     async with user_simulation(main_file=app_main) as user:
         await user.open("/new?dataset=shapes")
