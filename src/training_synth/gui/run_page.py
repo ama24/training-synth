@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ from nicegui import run, ui
 from PIL import Image, ImageDraw
 
 from ..evaluate import evaluate_run, package
-from ..export import FORMATS, PRECISION_HELP, export_model
+from ..export import FORMATS, PRECISION_HELP, export_model, package_zip
 from ..runs.manager import Manager
 from ..runs.store import ACTIVE, Run
 from ..util import human_time, read_json
@@ -612,6 +613,27 @@ class RunView:
                     columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0]],
                     rows=rows,
                 ).props("dense flat bordered").classes("w-full")
+                zip_status = ui.label()
+
+                async def make_zip(f: str, p: str) -> None:
+                    zip_status.text = "Creating the zip... (up to a minute)"
+                    try:
+                        out = await run.io_bound(package_zip, self.run, f, p)
+                    except Exception as exc:  # noqa: BLE001
+                        zip_status.text = f"Could not create the zip: {exc}"
+                        return
+                    zip_status.text = f"Created {out} ({out.stat().st_size / 1e6:.0f} MB)"
+
+                with ui.row():
+                    for e in exports:
+                        f, p = e["format"], e["precision"]
+                        ui.button(
+                            f"Create zip: {f} {p}", icon="archive", on_click=partial(make_zip, f, p)
+                        ).props("outline").mark(f"zip-{f}-{p}").tooltip(
+                            "One zip in the package folder, ready to hand to another program: this "
+                            "export, model_card.json, exports.json and the dataset's package files. "
+                            "Without best.pt and the re-scoring plots."
+                        )
             remotes = [r["name"] for r in ws().settings().get("remotes") or []]
             if remotes and exports:
                 with ui.row().classes("items-center"):

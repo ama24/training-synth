@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from collections.abc import Iterator, Mapping
 from datetime import datetime
 from pathlib import Path
@@ -78,6 +79,25 @@ def atomic_copy(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> Non
     with open(tmp, "rb+") as fh:
         os.fsync(fh.fileno())
     _replace(tmp, dst)
+
+
+def atomic_zip(path: str | os.PathLike[str], files: Mapping[str, Path]) -> None:
+    """Zip `files` ({name in the zip: file on disk}) into a temporary file, then rename."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            with zipfile.ZipFile(fh, "w", zipfile.ZIP_DEFLATED) as z:
+                for name, src in files.items():
+                    z.write(src, name)
+            fh.flush()
+            os.fsync(fh.fileno())
+        _replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def write_text(path: str | os.PathLike[str], text: str) -> None:

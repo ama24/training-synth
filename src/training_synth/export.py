@@ -9,12 +9,13 @@ from __future__ import annotations
 import logging
 import shutil
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from .evaluate import MAIN_METRIC, _data_arg, validate
 from .runs.store import Run
-from .util import now, read_json, write_json
+from .util import atomic_zip, now, read_json, write_json
+from .workspace import safe_name
 
 log = logging.getLogger("training_synth.export")
 
@@ -135,6 +136,43 @@ def export_model(
     card["exports"] = exports
     write_json(run.package_dir / "model_card.json", card)
     return rec
+
+
+def package_zip(run: Run, fmt: str, precision: str = "fp32") -> Path:
+    """One export as a zip for another program, written to package/.
+
+    Holds model_card.json, exports.json, the dataset's package_files and the exported model at the
+    same relative path as in package/. Leaves out best.pt, the re-scoring plots and the Python files
+    the exporter generates.
+    """
+    d = run.package_dir
+    rec = next(
+        (
+            e
+            for e in read_json(d / "exports.json", [])
+            if e["format"] == fmt and e["precision"] == precision
+        ),
+        None,
+    )
+    if rec is None:
+        raise ValueError(f"the run has no {fmt} {precision} export")
+    # the export's own folder, not rec["path"]: that one is absolute and breaks if the run moves
+    model = d / "exports" / f"{fmt}_{precision}" / PureWindowsPath(rec["path"]).name
+    if not model.exists():
+        raise FileNotFoundError(f"the export is missing: {model}")
+    card = read_json(d / "model_card.json", {})
+    files = {"model_card.json": d / "model_card.json", "exports.json": d / "exports.json"}
+    for name in card.get("package_files") or []:
+        if (d / name).is_file():
+            files[name] = d / name
+    for src in sorted(model.rglob("*")) if model.is_dir() else [model]:
+        if src.is_file() and src.suffix not in (".py", ".pyc"):
+            files[src.relative_to(d).as_posix()] = src
+    suffix = "" if precision == "fp32" else f"_{precision}"
+    out = d / f"{safe_name(run.config.name)}_{fmt}{suffix}.zip"
+    atomic_zip(out, files)
+    log.info("wrote %s (%d files)", out, len(files))
+    return out
 
 
 def benchmark(
