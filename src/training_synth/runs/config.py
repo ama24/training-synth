@@ -44,10 +44,14 @@ class RunConfig:
     train: dict[str, Any] = field(default_factory=dict)  # Ultralytics arguments (see params.py)
     options: RunOptions = field(default_factory=RunOptions)
     notes: str = ""
+    # Which defaults the settings were saved against (see params.OLD_DEFAULTS). A run.yaml
+    # without it is from before version 2.
+    defaults_version: int = P.DEFAULTS_VERSION
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> RunConfig:
         d = dict(d)
+        d.setdefault("defaults_version", 1)
         model = ModelChoice(**(d.pop("model", None) or {}))
         options = RunOptions(**(d.pop("options", None) or {}))
         known = set(cls.__dataclass_fields__)
@@ -66,7 +70,12 @@ class RunConfig:
     def train_args(self) -> dict[str, Any]:
         """Ultralytics arguments: defaults < augmentation preset < explicit values."""
         args = P.defaults(self.task)
-        args.update({k: v for k, v in P.AUG_PRESETS.get(self.aug_preset, {}).items() if k in args})
+        old = {k: v for k, v in P.old_defaults(self.defaults_version).items() if k in args}
+        args.update(old)
+        preset = dict(P.AUG_PRESETS.get(self.aug_preset, {}))
+        if self.aug_preset == "standard":  # 'standard' is the defaults of its time
+            preset.update(old)
+        args.update({k: v for k, v in preset.items() if k in args})
         clean, _ = P.validate(self.train, self.task)
         args.update(clean)
         return args
