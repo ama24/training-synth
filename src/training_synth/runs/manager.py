@@ -40,6 +40,10 @@ class Manager:
 
     # --------------------------------------------------------------------- creation
     def create(self, project: Project, cfg: RunConfig) -> Run:
+        from ..datasets import store
+
+        if cfg.dataset in project.datasets():
+            cfg.set_label_kind(store.manifest(project, cfg.dataset).get("label_kind", ""))
         problems = cfg.problems()
         if problems:
             raise ValueError("; ".join(problems))

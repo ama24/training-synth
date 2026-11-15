@@ -24,10 +24,17 @@ log = logging.getLogger("training_synth.augpreview")
 
 
 def preview_data(
-    ds: Dataset, task: str, cache: Path, classes: Mapping[str, Any] | None = None
+    ds: Dataset,
+    task: str,
+    cache: Path,
+    classes: Mapping[str, Any] | None = None,
+    crop: Mapping[str, Any] | None = None,
 ) -> Path:
     """A small prepared dataset (about 60 training images) for previews, cached by settings."""
-    key = sha1_text(f"{ds.source}|{task}|{sorted((classes or {}).items())}|{len(ds.items)}")[:16]
+    plan = prep.CropPlan.from_dict(crop)
+    key = sha1_text(
+        f"{ds.source}|{task}|{sorted((classes or {}).items())}|{len(ds.items)}|{sorted(vars(plan).items())}"
+    )[:16]
     out = cache / "preview" / key
     if (out / "manifest.json").is_file():
         return out
@@ -44,6 +51,7 @@ def preview_data(
         prep.ClassPlan.from_dict(classes),
         split,
         subset=min(1.0, 60 / max(n_train, 1)),
+        crop=plan,
         hash_files=False,
     )
     return out

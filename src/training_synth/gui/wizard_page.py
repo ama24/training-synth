@@ -12,7 +12,7 @@ from .. import models as M
 from .. import params as P
 from ..datasets import store
 from ..datasets.formats import TASK_LABELS
-from ..runs.config import RunConfig
+from ..runs.config import FIXED_CROP_MAX_ERASING, RunConfig, crop_rules
 from ..runs.manager import Manager
 from ..runs.store import Run
 from ..util import free_disk_gb, human_time, read_yaml, write_yaml
@@ -71,6 +71,7 @@ class Wizard:
     # ------------------------------------------------------------------ data helpers
     def load_dataset_info(self) -> None:
         self.manifest = store.manifest(project(), self.cfg.dataset)
+        self.cfg.set_label_kind(self.manifest.get("label_kind", ""))
         self.classes: dict[int, str] = {int(k): v for k, v in self.manifest["classes"].items()}
         imgsz = int(self.cfg.train.get("imgsz", 640))
         path = store.dataset_dir(project(), self.cfg.dataset) / f"health_{imgsz}.json"
@@ -232,7 +233,10 @@ class Wizard:
             self.cfg.name = name
         self.render_task()
         self.render_classes()
-        self.refresh_model_table()
+        self.render_crop()
+        if hasattr(self, "aug_box"):
+            self.render_aug()
+        self.refresh_estimates()
 
     def render_task(self) -> None:
         self.task_box.clear()
@@ -259,7 +263,10 @@ class Wizard:
         fam = M.FAMILIES[self.cfg.model.family]
         if task not in fam.tasks:
             self.cfg.model.family = "yolo26"
-        self.refresh_model_table()
+        self.render_crop()
+        if hasattr(self, "aug_box"):
+            self.render_aug()  # fixed crops change which augmentations apply
+        self.refresh_estimates()
 
     def class_counts(self) -> dict[int, tuple[int, int]]:
         """class id -> (objects, images), counted over all splits."""
@@ -594,11 +601,51 @@ class Wizard:
             )
             help_icon(p.help())
         self.size_warn = ui.label().classes("text-sm text-warning")
+        self.crop_box = ui.column().classes("w-full")
+        self.render_crop()
         if not self.simple:
             for key in ("rect", "cache", "workers", "fraction"):
                 q = P.BY_KEY[key]
                 if P.applies(q, self.cfg.task):
                     param_input(q, self.args[key], self.set_train)
+
+    def render_crop(self) -> None:
+        """Classification from boxes/masks: how the objects are cut out (datasets.prepare)."""
+        if not hasattr(self, "crop_box"):
+            return
+        self.crop_box.clear()
+        crop = self.cfg.crop
+        cropping = self.cfg.task == "classify" and crop.get("mode") in ("fixed", "scaled")
+        self.imgsz_input.set_enabled(not self.cfg.fixed_crops())
+        if not cropping:
+            return
+        with self.crop_box:
+            ui.label("Object crops").classes("font-medium")
+            ui.label(
+                "The classifier sees one crop per labelled object. 'fixed' keeps every object's "
+                "real size in pixels, so classes that differ only in size can be told apart."
+            ).classes("text-sm text-gray-600")
+            keys = (
+                ("mode", "size_px", "longest_side_px", "labels")
+                if crop.get("mode") == "fixed"
+                else ("mode", "padding")
+            )
+            with ui.grid(columns=2).classes("w-full"):
+                for k in keys:
+                    q = P.CROP_PARAMS[k]
+                    param_input(q, crop.get(k, q.default), self.set_crop)
+            if self.cfg.fixed_crops():
+                ui.label(
+                    "The training image size is the crop size, so the crop is never resized."
+                ).classes("text-xs text-gray-500")
+
+    def set_crop(self, key: str, value: Any) -> None:
+        self.cfg.crop[key] = value
+        if key == "mode":
+            self.render_crop()
+            if hasattr(self, "aug_box"):
+                self.render_aug()
+        self.refresh_estimates()
 
     # ----------------------------------------------------------------- 4 augment
     def step_augment(self) -> None:
@@ -638,7 +685,16 @@ class Wizard:
         keys = [k for k in P.AUG_KEYS if P.applies(P.BY_KEY[k], self.cfg.task)]
         if self.simple:
             keys = [k for k in keys if k in ("fliplr", "flipud", "degrees", "hsv_h")]
+        fixed = self.cfg.fixed_crops()
+        if fixed:  # set by the crop rules (runs.config.crop_rules), not by the preset
+            keys = [k for k in keys if k not in ("scale", "auto_augment")]
         with self.aug_box:
+            if fixed:
+                ui.label(
+                    "Fixed crops: zoom and auto-augment are off and random erasing is at most "
+                    f"{FIXED_CROP_MAX_ERASING}, because they change or hide the objects' size. "
+                    "Colour and flips are kept."
+                ).classes("text-sm text-gray-600")
             if self.simple:
                 ui.label("Most useful switches (all others follow the preset):").classes("text-sm")
             with ui.grid(columns=2).classes("w-full"):
@@ -866,6 +922,11 @@ class Wizard:
                     "colour augmentation is on: fine unless colour is what separates your classes",
                 )
             )
+        _, crop_notes = crop_rules(
+            self.cfg.train_args(apply_crop=False), self.cfg.task, self.cfg.crop
+        )
+        if crop_notes:
+            out.append(("info", "fixed crops set: " + "; ".join(crop_notes)))
         if self.cfg.model.start == "scratch" and int(self.args["epochs"]) < 200:
             out.append(("info", "training from scratch usually needs 300+ epochs"))
         return out

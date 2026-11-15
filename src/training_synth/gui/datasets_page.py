@@ -555,14 +555,17 @@ class AugPreview:
 
     async def refresh(self) -> None:
         from ..augpreview import preview_data, samples
+        from ..runs.config import crop_rules
 
         self.grid.clear()
         with self.grid:
             ui.spinner(size="lg")
         ds, _ = store.open_dataset(project(), self.name)
+        crop = {"mode": "none" if ds.label_kind == "classes" else "fixed"}  # a new run's crops
+        args, _ = crop_rules(self.values, self.task, crop)
         try:
             data = await run.io_bound(preview_data, ds, self.task, ws().cache_dir)
-            imgs = await run.io_bound(samples, data, self.task, self.values, 9)
+            imgs = await run.io_bound(samples, data, self.task, args, 9)
         except Exception as exc:  # noqa: BLE001 - shown to the user
             self.grid.clear()
             with self.grid:

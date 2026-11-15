@@ -167,6 +167,38 @@ Every step can be saved as a template.
 - Predictions can be downloaded.
 - Later: correct the predictions and send them back into a dataset (active learning).
 
+### 7b. Classification crops
+
+A classifier trained from box or mask labels sees one crop per object
+(`datasets/prepare.py`, `CropPlan`). Folder-per-class datasets are used as they are.
+
+- **fixed** (the default for new runs) keeps the object's real size in pixels:
+  1. shrink the whole image so its longest side is `longest_side_px` (OpenCV `INTER_AREA`);
+  2. cut a `size_px` square centred on the box centre, padded with (114, 114, 114) outside the
+     image;
+  3. save it as PNG, and train at `imgsz = size_px`, so the crop is never resized.
+
+  Training then turns off what changes sizes (`runs/config.py`, `crop_rules`): zoom (`scale`
+  0, which also stops Ultralytics' ±15 % aspect stretch on square crops), auto-augment (shear),
+  and erasing above 0.2. Objects larger than the window are counted per class in the run's
+  events.
+- **scaled** (runs saved before fixed crops existed): a square of `max(w, h) × (1 + 2 × padding)`
+  that Ultralytics resizes to `imgsz`. Every object fills its crop, so its size is lost.
+
+The model card of a fixed-crop classifier describes the crops, so a program using the model can
+cut its crops the same way. This is a shared format: change a field's meaning only with a new
+`version`.
+
+```json
+"classifier_crop": {"version": 1, "mode": "fixed", "longest_side_px": 1024, "size_px": 256,
+                    "pad": [114, 114, 114], "interpolation": "area", "centre": "box",
+                    "labels": "class"}
+```
+
+`labels` is the user's answer to "do the class names tell sizes apart?": `class` (yes) or `type`
+(no). A model without the block cannot judge size. Classification cards also list
+`confused_pairs`: the class pairs mixed up most on the validation images, in both directions.
+
 ### 8. Export
 
 - Formats: ONNX, TensorRT, OpenVINO, NCNN, TFLite, CoreML.

@@ -630,6 +630,96 @@ PARAMS: list[Param] = [
 ]
 
 BY_KEY = {p.key: p for p in PARAMS}
+
+# Classification crops cut from box/mask labels (datasets.prepare.CropPlan). Run settings, not
+# Ultralytics arguments: they live in RunConfig.crop and are never passed to model.train.
+CROP_PARAMS = {
+    p.key: p
+    for p in (
+        Param(
+            "mode",
+            "Crop mode",
+            "data",
+            "choice",
+            "fixed",
+            "How each object is cut out for the classifier. 'fixed': every image is shrunk to the "
+            "same scale and a window of the same size is cut around each object, so the crop keeps "
+            "the object's real size in pixels. 'scaled': the window grows with the object and is "
+            "resized, so every object fills its crop and its size is lost.",
+            "fixed; 'scaled' only to compare with older runs",
+            "",
+            "",
+            choices=("fixed", "scaled"),
+            tasks=("classify",),
+        ),
+        Param(
+            "size_px",
+            "Crop size (px)",
+            "data",
+            "int",
+            256,
+            "Side of the square window cut around each object (fixed mode), in pixels of the "
+            "shrunk image. It is also the training image size, so the crop is never resized.",
+            "256",
+            "objects longer than the window fit, but training is slower and the object is a "
+            "smaller part of the picture.",
+            "faster; objects larger than the window are cut at its edge (the run's events report "
+            "how many per class).",
+            min=32,
+            max=1024,
+            step=32,
+            tasks=("classify",),
+        ),
+        Param(
+            "longest_side_px",
+            "Shrink images to (px, longest side)",
+            "data",
+            "int",
+            1024,
+            "Before cutting, every image is shrunk so its longest side is this many pixels (area "
+            "interpolation). Use the image size of the detection model whose objects this "
+            "classifier checks, so both see the same pixels per mm.",
+            "the detection model's image size, e.g. 1024",
+            "objects get more pixels (finer detail), but fewer fit in the crop window.",
+            "objects get fewer pixels: small differences in size become harder to see.",
+            min=64,
+            max=8192,
+            step=32,
+            tasks=("classify",),
+        ),
+        Param(
+            "labels",
+            "Do the class names tell sizes apart?",
+            "data",
+            "choice",
+            "class",
+            "Recorded in the model card for the program that uses the model. 'class': the classes "
+            "differ in size (e.g. M3 and M4), so the model may be trusted to judge size. 'type': "
+            "the classes ignore size.",
+            "class",
+            "",
+            "",
+            choices=("class", "type"),
+            tasks=("classify",),
+        ),
+        Param(
+            "padding",
+            "Crop margin (scaled mode)",
+            "data",
+            "float",
+            0.1,
+            "Scaled mode only: the margin around the object, as a share of its longer side on each "
+            "side.",
+            "0.1",
+            "more surroundings in the crop.",
+            "the object fills more of the crop.",
+            min=0,
+            max=1,
+            step=0.05,
+            tasks=("classify",),
+        ),
+    )
+}
 GROUPS = {
     "data": "Data preparation",
     "train": "Training",
