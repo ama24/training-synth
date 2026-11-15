@@ -7,7 +7,14 @@
     <run>/data/manifest.json            every file with size and SHA-1, the class mapping, the splits
 
 Classification runs get the folder layout Ultralytics expects (`<split>/<class>/<image>`), cut
-from the boxes when the source dataset has boxes.
+from the boxes when the source dataset has boxes. Two crop modes (CropPlan):
+
+- fixed: the whole image is shrunk so its longest side is `longest_side_px` (OpenCV INTER_AREA),
+  then a fixed `size_px` square is cut around each box centre, padded with grey where it leaves
+  the image, and saved as PNG. Every crop has the same pixels per mm, so the classifier can see
+  an object's size. Training then uses imgsz = size_px, so nothing resizes the crop again.
+- scaled (the old mode): a square of max(box w, h) x (1 + 2 x padding) around each box, which
+  Ultralytics resizes to imgsz: every object fills the same share of its crop and its size is lost.
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ import numpy as np
 
 from ..util import (
     atomic_copy,
+    atomic_write_bytes,
     link_or_copy,
     now,
     read_json,
@@ -80,6 +88,54 @@ class ClassPlan:
                 index[n] = len(index)
                 new_names[index[n]] = n
         return {i: (None if n is None else index[n]) for i, n in final.items()}, new_names
+
+
+CROP_PAD = (114, 114, 114)  # grey outside the image (Ultralytics' letterbox colour)
+CROP_FORMAT_VERSION = 1  # model_card.json "classifier_crop": bump when a field's meaning changes
+
+
+@dataclass
+class CropPlan:
+    """How classification crops are cut from box/mask labels (folder datasets are not cropped)."""
+
+    mode: str = "fixed"  # fixed | scaled
+    size_px: int = 256  # fixed: side of the crop window, in pixels of the shrunk image
+    longest_side_px: int = 1024  # fixed: the image is shrunk to this longest side first
+    labels: str = "class"  # class: class names tell sizes apart | type: they do not
+    padding: float = 0.1  # scaled: margin around the box, as a share of its longer side
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any] | None) -> CropPlan:
+        d = dict(d or {})
+        out = cls()
+        for k in ("mode", "labels"):
+            if k in d:
+                setattr(out, k, str(d[k]))
+        for k in ("size_px", "longest_side_px"):
+            if k in d:
+                setattr(out, k, int(d[k]))
+        if "padding" in d:
+            out.padding = float(d["padding"])
+        if out.mode not in ("fixed", "scaled"):
+            raise ValueError(f"unknown crop mode {out.mode!r} (fixed or scaled)")
+        if out.labels not in ("class", "type"):
+            raise ValueError(f"unknown crop labels {out.labels!r} (class or type)")
+        if out.size_px < 32 or out.longest_side_px < 32:
+            raise ValueError("crop sizes must be at least 32 px")
+        return out
+
+    def card(self) -> dict[str, Any]:
+        """The model card's "classifier_crop" block (a format shared with other projects)."""
+        return {
+            "version": CROP_FORMAT_VERSION,
+            "mode": "fixed",
+            "longest_side_px": self.longest_side_px,
+            "size_px": self.size_px,
+            "pad": list(CROP_PAD),
+            "interpolation": "area",
+            "centre": "box",
+            "labels": self.labels,
+        }
 
 
 @dataclass
@@ -256,12 +312,13 @@ def prepare(
     subset: float = 1.0,
     balance: str = "none",  # none | oversample
     max_repeat: float = 4.0,
-    crop_padding: float = 0.1,
+    crop: CropPlan | None = None,
     hash_files: bool = True,  # SHA-1 of every file in the manifest (off for throw-away previews)
 ) -> dict[str, Any]:
     """Write the run dataset under `out` and return the manifest."""
     classes = classes or ClassPlan()
     split = split or SplitPlan()
+    crop = crop or CropPlan()
     mapping, new_names = classes.mapping(ds.names)
     if not new_names:
         raise ValueError("every class is dropped: nothing left to train")
@@ -299,6 +356,8 @@ def prepare(
     counts = {s: Counter() for s in SPLITS}
     n_images = Counter()
     skipped = Counter()
+    crops_total: Counter = Counter()  # class id -> crops (fixed mode)
+    crops_cut: Counter = Counter()  # class id -> crops whose box is larger than the window
     train_list: list[tuple[Item, str]] = []
     groups_rows: list[tuple[str, str, str]] = []
     for it, s in items:
@@ -312,9 +371,14 @@ def prepare(
         objs = [(o, mapping.get(o.cls)) for o in it.objects]
         objs = [(o, c) for o, c in objs if c is not None]
         if task == "classify":
-            n = _write_classify(
-                it, s, name, objs, new_names, out, files, ds.label_kind, crop_padding
-            )
+            if ds.label_kind == "classes":
+                n = _write_class_image(it, s, name, objs, new_names, out, files)
+            elif crop.mode == "fixed":
+                n = _write_fixed_crops(
+                    it, s, name, objs, new_names, out, files, crop, crops_total, crops_cut
+                )
+            else:
+                n = _write_scaled_crops(it, s, name, objs, new_names, out, files, crop.padding)
             n_images[s] += n
             for _, c in objs:
                 counts[s][c] += 1
@@ -381,12 +445,14 @@ def prepare(
         else None,
         "skipped": dict(skipped),
         "package_files": sorted(ds.package_files),
+        "crops": _crop_summary(task, ds.label_kind, crop, new_names, crops_total, crops_cut),
         "settings": {
             "classes": vars(classes),
             "split": vars(split),
             "subset": subset,
             "balance": balance,
             "max_repeat": max_repeat,
+            "crop": vars(crop),
         },
         "files": files,
     }
@@ -407,7 +473,72 @@ def _write_groups(path: Path, rows: Sequence[tuple[str, str, str]]) -> None:
     write_text(path, buf.getvalue())
 
 
-def _write_classify(
+def _crop_summary(
+    task: str,
+    label_kind: str,
+    crop: CropPlan,
+    names: Mapping[int, str],
+    total: Counter,
+    cut: Counter,
+) -> dict[str, Any] | None:
+    """What the classification crops are; None when there are none (other tasks, folders)."""
+    if task != "classify" or label_kind == "classes":
+        return None
+    if crop.mode != "fixed":
+        return {"mode": "scaled", "padding": crop.padding}
+    return {
+        "mode": "fixed",
+        "card": crop.card(),
+        "crops": {names[c]: n for c, n in sorted(total.items())},
+        # objects larger than the window are cut at its edge; the share per class tells whether
+        # size_px is large enough
+        "larger_than_window": {
+            names[c]: {"crops": cut[c], "share": round(cut[c] / total[c], 4)}
+            for c in sorted(total)
+            if cut[c]
+        },
+    }
+
+
+def shrink_to_longest_side(img: np.ndarray, longest_side_px: int) -> np.ndarray:
+    """Resize so the longer side is `longest_side_px` (OpenCV INTER_AREA, as in the crop format)."""
+    import cv2
+
+    h, w = img.shape[:2]
+    r = longest_side_px / max(h, w)
+    if r == 1:
+        return img
+    size = (max(1, round(w * r)), max(1, round(h * r)))
+    return cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+
+
+def fixed_crop(img: np.ndarray, cx: float, cy: float, size_px: int) -> np.ndarray:
+    """A size_px square centred on (cx, cy) in pixels, padded with CROP_PAD outside the image."""
+    import cv2
+
+    x0 = int(round(cx - size_px / 2))
+    y0 = int(round(cy - size_px / 2))
+    h, w = img.shape[:2]
+    top, left = max(0, -y0), max(0, -x0)
+    bottom, right = max(0, y0 + size_px - h), max(0, x0 + size_px - w)
+    part = img[max(0, y0) : min(h, y0 + size_px), max(0, x0) : min(w, x0 + size_px)]
+    if top or left or bottom or right:
+        part = cv2.copyMakeBorder(
+            part, top, bottom, left, right, cv2.BORDER_CONSTANT, value=CROP_PAD
+        )
+    return part
+
+
+def _read_bgr(path: Path) -> np.ndarray:
+    import cv2
+
+    img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)  # any path
+    if img is None:
+        raise ValueError(f"cannot read image {path}")
+    return img
+
+
+def _write_fixed_crops(
     it: Item,
     split: str,
     name: str,
@@ -415,19 +546,64 @@ def _write_classify(
     names: Mapping[int, str],
     out: Path,
     files: dict[str, dict[str, Any]],
-    kind: str,
+    crop: CropPlan,
+    total: Counter,
+    cut: Counter,
+) -> int:
+    import cv2
+
+    boxes = [(k, o, c) for k, (o, c) in enumerate(objs) if o.box]
+    if not boxes:
+        return 0
+    img = shrink_to_longest_side(_read_bgr(it.image), crop.longest_side_px)
+    h, w = img.shape[:2]
+    for k, o, c in boxes:
+        cx, cy, bw, bh = o.box
+        part = fixed_crop(img, cx * w, cy * h, crop.size_px)
+        rel = f"{split}/{names[c]}/{name}_{k}.png"  # lossless: JPEG blurs the edges
+        ok, buf = cv2.imencode(".png", part)
+        if not ok:
+            raise ValueError(f"cannot encode a crop of {it.image}")
+        atomic_write_bytes(out / rel, buf.tobytes())
+        files[rel] = {"size": (out / rel).stat().st_size, "source": str(it.image), "crop": k}
+        total[c] += 1
+        if max(bw * w, bh * h) > crop.size_px:
+            cut[c] += 1
+    return len(boxes)
+
+
+def _write_class_image(
+    it: Item,
+    split: str,
+    name: str,
+    objs: Sequence[tuple[Obj, int]],
+    names: Mapping[int, str],
+    out: Path,
+    files: dict[str, dict[str, Any]],
+) -> int:
+    """Folder-per-class datasets: the whole image, as it is."""
+    if not objs:
+        return 0
+    c = objs[0][1]
+    rel = f"{split}/{names[c]}/{name}{it.image.suffix.lower()}"
+    link_or_copy(it.image, out / rel)
+    files[rel] = {"size": (out / rel).stat().st_size, "source": str(it.image)}
+    return 1
+
+
+def _write_scaled_crops(
+    it: Item,
+    split: str,
+    name: str,
+    objs: Sequence[tuple[Obj, int]],
+    names: Mapping[int, str],
+    out: Path,
+    files: dict[str, dict[str, Any]],
     padding: float,
 ) -> int:
+    """The old crops: the window grows with the object, so its size in pixels is lost."""
     from PIL import Image
 
-    if kind == "classes":
-        if not objs:
-            return 0
-        c = objs[0][1]
-        rel = f"{split}/{names[c]}/{name}{it.image.suffix.lower()}"
-        link_or_copy(it.image, out / rel)
-        files[rel] = {"size": (out / rel).stat().st_size, "source": str(it.image)}
-        return 1
     n = 0
     with Image.open(it.image) as im:
         img = im.convert("RGB")

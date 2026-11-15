@@ -132,6 +132,14 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
             if args.drop:
                 cfg.classes["drop"] = args.drop
+            crop = {"mode": args.crop}
+            for k in ("crop_size", "crop_longest_side", "crop_labels"):
+                if getattr(args, k) is not None:
+                    key = {"crop_size": "size_px", "crop_longest_side": "longest_side_px"}.get(
+                        k, "labels"
+                    )
+                    crop[key] = getattr(args, k)
+            cfg.crop = crop  # folder datasets: set to none by Manager.create
         run = mgr.create(proj, cfg)
         _out(f"created {run.id}")
         if args.start:
@@ -373,6 +381,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--resplit", action="store_true", help="new stratified, group-aware train/val split"
     )
     x.add_argument("--subset", type=float, default=1.0)
+    x.add_argument(
+        "--crop",
+        default="fixed",
+        choices=["fixed", "scaled"],
+        help="classify from boxes/masks: fixed-scale crops (keep object size) or scaled (old)",
+    )
+    x.add_argument("--crop-size", type=int, help="fixed crops: window side in px (default 256)")
+    x.add_argument(
+        "--crop-longest-side",
+        type=int,
+        help="fixed crops: shrink images to this longest side first (default 1024)",
+    )
+    x.add_argument(
+        "--crop-labels",
+        choices=["class", "type"],
+        help="model card: do the class names tell sizes apart (class) or not (type)",
+    )
     x.add_argument("--set", nargs="*", help="any Ultralytics argument, e.g. lr0=0.001 mosaic=0.5")
     x.add_argument("--start", action="store_true")
     rs.add_parser("list", parents=[common])

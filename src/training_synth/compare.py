@@ -25,6 +25,8 @@ def flat_settings(run: Run) -> dict[str, Any]:
         )
         or "-",
     }
+    if cfg.task == "classify" and cfg.crop.get("mode") != "none":
+        out.update({f"crop {k}": v for k, v in sorted(cfg.crop.items())})
     out.update(cfg.train_args())
     return out
 

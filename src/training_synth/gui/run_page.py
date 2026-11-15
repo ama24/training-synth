@@ -400,6 +400,37 @@ class RunView:
             show(len(epochs) - 1)
 
     # ------------------------------------------------------------------------ results
+    def render_confused_pairs(self, pairs: list[dict[str, Any]]) -> None:
+        with ui.row().classes("items-center"):
+            ui.label("Classes mixed up").classes("text-lg font-bold")
+            help_icon(
+                "The pairs of classes the model confuses most on the validation images, in both "
+                "directions. The overall accuracy can look good while two look-alike classes (for "
+                "example two sizes of the same part) are confused half of the time: check them here."
+            )
+        if not pairs:
+            ui.label("No class was taken for another on the validation images.").classes(
+                "text-sm text-gray-600"
+            )
+            return
+        ui.table(
+            columns=[
+                {"name": "pair", "label": "Classes", "field": "pair", "align": "left"},
+                {"name": "ab", "label": "First taken for second", "field": "ab", "align": "left"},
+                {"name": "ba", "label": "Second taken for first", "field": "ba", "align": "left"},
+                {"name": "rate", "label": "Share of both", "field": "rate", "align": "left"},
+            ],
+            rows=[
+                {
+                    "pair": f"{p['a']} / {p['b']}",
+                    "ab": f"{p['a_as_b']} of {p['a_images']}",
+                    "ba": f"{p['b_as_a']} of {p['b_images']}",
+                    "rate": f"{p['rate']:.0%}" if p.get("rate") is not None else "-",
+                }
+                for p in pairs
+            ],
+        ).props("dense flat bordered").classes("w-full")
+
     def render_results(self) -> None:
         self.results_box.clear()
         res = self.run.results()
@@ -437,6 +468,8 @@ class RunView:
                         for r in pc
                     ],
                 ).props("dense flat bordered").classes("w-full")
+            if self.cfg.task == "classify":
+                self.render_confused_pairs(res.get("confused_pairs") or [])
             with ui.grid(columns=2).classes("w-full gap-3"):
                 cm = res.get("confusion")
                 if cm and cm.get("matrix"):

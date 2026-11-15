@@ -143,12 +143,28 @@ class Worker:
             prep.SplitPlan.from_dict(self.cfg.split),
             subset=float(self.cfg.subset),
             balance=self.cfg.balance,
+            crop=prep.CropPlan.from_dict(self.cfg.crop)
+            if self.cfg.crop.get("mode") in ("fixed", "scaled")
+            else None,
         )
         out["dataset_fingerprint"] = m["fingerprint"]
         write_json(manifest, out)
         self.event(
             "dataset", f"prepared {out['images']} images, classes {list(out['classes'].values())}"
         )
+        crops = out.get("crops") or {}
+        if crops.get("mode") == "fixed":
+            c = crops["card"]
+            text = (
+                f"fixed crops: {c['size_px']} px windows cut from images shrunk to "
+                f"{c['longest_side_px']} px on the longest side"
+            )
+            big = crops["larger_than_window"]
+            if big:
+                text += "; objects larger than the window (cut at its edge): " + ", ".join(
+                    f"{k} {v['share']:.0%}" for k, v in big.items()
+                )
+            self.event("dataset", text, "warn" if big else "info")
 
     def data_arg(self) -> str:
         if self.cfg.task == "classify":

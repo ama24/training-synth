@@ -80,9 +80,10 @@ def metrics_dict(m: Any, task: str) -> dict[str, Any]:
         ]
     with contextlib.suppress(Exception):
         cm = m.confusion_matrix
+        names = getattr(m, "names", None) or getattr(cm, "names", None)  # classify: on the matrix
         out["confusion"] = {
             "matrix": cm.matrix.astype(float).tolist(),
-            "names": list(m.names.values()) if hasattr(m, "names") else None,
+            "names": list(names.values()) if isinstance(names, dict) else names,
         }
     if task != "classify":
         with contextlib.suppress(Exception):
@@ -104,9 +105,47 @@ def metrics_dict(m: Any, task: str) -> dict[str, Any]:
                 i = int(np.argmax(f1["y"]))
                 out["recommended_conf"] = round(float(f1["x"][i]), 3)
                 out["best_f1"] = round(float(f1["y"][i]), 4)
+    if task == "classify" and out.get("confusion", {}).get("names"):
+        cm = out["confusion"]
+        out["confused_pairs"] = confused_pairs(cm["matrix"], cm["names"])
     with contextlib.suppress(Exception):
         out["speed_ms"] = {k: float(v) for k, v in m.speed.items()}
     return out
+
+
+def confused_pairs(
+    matrix: Sequence[Sequence[float]], names: Sequence[str], limit: int = 20
+) -> list[dict[str, Any]]:
+    """The class pairs a classifier mixes up most, from its confusion matrix.
+
+    `matrix[predicted][true]` (Ultralytics' layout for classification). For every pair (a, b) with
+    at least one mistake: how many a's were called b and the other way round, out of how many
+    images of each. A single overall accuracy hides a pair of look-alike classes (e.g. two sizes
+    of the same part) that are confused half of the time.
+    """
+    mat = np.asarray(matrix, dtype=float)
+    n = min(len(names), mat.shape[0], mat.shape[1])
+    totals = mat[:n, :n].sum(axis=0)  # images per true class
+    pairs = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            a_as_b, b_as_a = float(mat[j, i]), float(mat[i, j])
+            if a_as_b + b_as_a == 0:
+                continue
+            both = float(totals[i] + totals[j])
+            pairs.append(
+                {
+                    "a": names[i],
+                    "b": names[j],
+                    "a_as_b": int(a_as_b),
+                    "b_as_a": int(b_as_a),
+                    "a_images": int(totals[i]),
+                    "b_images": int(totals[j]),
+                    "rate": round((a_as_b + b_as_a) / both, 4) if both else None,
+                }
+            )
+    pairs.sort(key=lambda p: (-(p["a_as_b"] + p["b_as_a"]), -(p["rate"] or 0)))
+    return pairs[:limit]
 
 
 def plain_summary(res: dict[str, Any], task: str) -> str:
@@ -372,6 +411,16 @@ def package(run: Run, res: dict[str, Any] | None = None) -> Path:
             "created": now(),
         }
     )
+    crops = manifest.get("crops") or {}
+    if cfg.task == "classify" and crops.get("mode") == "fixed":
+        # how the crops were cut, so a program using the model cuts its crops the same way
+        card["classifier_crop"] = crops["card"]
+    else:
+        card.pop("classifier_crop", None)  # an older package of this run may have had one
+    if cfg.task == "classify":
+        card["confused_pairs"] = res.get("confused_pairs") or []
+    else:
+        card.pop("confused_pairs", None)
     data_yaml = run.data_dir / "data.yaml"
     data = (read_yaml(data_yaml) or {}) if data_yaml.is_file() else {}
     if data.get("kpt_shape"):
