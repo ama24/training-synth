@@ -1,7 +1,9 @@
 # training-synth
 
-A friendly, generic app for training YOLO models: detection, segmentation, pose (keypoints), rotated boxes (OBB)
-and classification.
+A friendly, generic app for training YOLO models in your browser: detection, segmentation, pose (keypoints),
+rotated boxes (OBB) and classification.
+
+![Live training charts, with Pause and Stop buttons](docs/images/07-training.png)
 
 You:
 1. load a dataset and check its health;
@@ -13,9 +15,13 @@ You:
 Beginners get recommended values and explanations everywhere (**Simple** mode). Experienced users get every
 parameter, raw YAML, sweeps and a CLI (**Advanced** mode).
 
+**New here?** [Install](#install-windows-linux) the app, then follow
+[Your first model in 10 minutes](#your-first-model-in-10-minutes).
+
 ## Install (Windows, Linux)
 
 Requirements: Python 3.10-3.12, and an NVIDIA GPU with a recent driver (training on the CPU works, but slowly).
+Without an NVIDIA GPU, skip the `pip install torch` line.
 
 ```bash
 git clone https://github.com/ama24/training-synth.git
@@ -35,6 +41,130 @@ Everything (datasets, runs, settings) lives in the **workspace** folder:
 - default: `~/training-synth-workspace` (a `~/model-trainer-workspace` from before the rename keeps
   being used);
 - or set `TRAINING_SYNTH_HOME` (the old `MTRAIN_HOME` still works), or pass `--workspace`.
+
+To open the app again later, activate the environment and run `training-synth gui`.
+
+## Your first model in 10 minutes
+
+This walkthrough trains a small detector on coco128, a public sample of 128 everyday photos. The training itself
+took about 3 minutes on an RTX 2070 SUPER.
+
+### 1. Get the sample dataset
+
+Run these in the activated environment, in any folder. They work in PowerShell, cmd and bash.
+
+```bash
+python -c "import urllib.request as u; u.urlretrieve('https://github.com/ultralytics/assets/releases/download/v0.0.0/coco128.zip', 'coco128.zip')"
+python -m zipfile -e coco128.zip .
+python -c "import ultralytics, shutil, pathlib as p; shutil.copy(p.Path(ultralytics.__file__).parent / 'cfg/datasets/coco128.yaml', 'coco128/data.yaml'); print(p.Path('coco128').resolve())"
+```
+
+The last command prints the full path of the dataset. Copy it. If the download fails, try again later or open the
+link in a browser and put the zip in this folder.
+
+### 2. Import it
+
+Start the app with `training-synth gui`. Open **Datasets**, press **Import dataset**, paste the path and press
+**Import**.
+
+![The Import a dataset dialog](docs/images/01-import.png)
+
+### 3. Read the health report
+
+The app checks the dataset before you spend time training. Open any card to see what it means, why it matters and
+what to do.
+
+![Health report with class balance and object size cards](docs/images/02-health.png)
+
+Red cards are expected for this sample, because 128 images cannot cover 80 classes well. On your own data, try to
+fix red cards before training. The **Gallery** tab shows every image with its labels.
+
+![Gallery of images with labels drawn on them](docs/images/03-gallery.png)
+
+### 4. Set up the run
+
+Press **Train a model on it** to open the wizard, and leave **Simple** mode on. Press **Next** to move between steps.
+
+**Dataset & classes.** Open **Balance, splits and quick tests** and choose **Make a new split**. This sample needs it
+because it has no validation images. Your own dataset may already have them.
+
+![Make a new split selected in the wizard](docs/images/04-wizard-split.png)
+
+**Base model.** Keep the recommendation and **Pretrained**. The table estimates the GPU memory and the time per epoch
+of each size.
+
+![Base model step with the size table](docs/images/05-wizard-model.png)
+
+**Data preparation** and **Augmentation.** Keep the defaults.
+
+**Training.** Set **Epochs** to 30 for this first test.
+
+**Review & start.** Read the estimates and warnings, then press **Start now**.
+
+![Review step with estimates and the Start now button](docs/images/06-wizard-review.png)
+
+### 5. Watch it train
+
+The run page updates after every epoch. You can close the browser and training continues. **Pause** frees the GPU at
+the end of the epoch, and **Resume** continues where it stopped.
+
+The charts at the top of this page come from this run. They look flat because the pretrained weights already know
+these 80 classes. On your own classes, expect the losses to fall and the scores to rise, then level off.
+
+**Watch it learn** shows the predictions on the same validation images as training goes on.
+
+![Predictions drawn on validation images](docs/images/08-watch.png)
+
+### 6. Check the results
+
+When the run ends, open the **Results** tab. It has a plain-language summary, the score per class and, further down,
+the confusion matrix and the images the model got wrong. This run reached mAP50-95 0.64, where 1.0 would be perfect.
+With only about 20 validation images, treat that number as a rough guide.
+
+![Results summary and per-class table](docs/images/09-results.png)
+
+### 7. Try it on new images
+
+Press **Try it** to open the **Playground**. Drop in some images, then press **Run again** to see the predictions.
+Use photos the model has never seen: this is the real test.
+
+![Playground showing detections on an uploaded photo](docs/images/11-playground.png)
+
+### 8. Export it
+
+On the **Export** tab, pick a format and precision and press **Export**. The exported model is re-scored, so you can
+see whether it lost accuracy. Everything another program needs is in the `package` folder shown on that tab (see
+[Using the models elsewhere](#using-the-models-elsewhere)).
+
+![Export tab with a finished ONNX export](docs/images/10-export.png)
+
+## Train on your own data
+
+Import a folder in one of these layouts:
+
+```
+my_dataset/                      # YOLO, which most labelling tools can export
+  data.yaml                      # names: {0: cat, 1: dog}, train: images/train, val: images/val
+  images/train/*.jpg   labels/train/*.txt
+  images/val/*.jpg     labels/val/*.txt
+```
+
+COCO json files and one folder per class also work. The [user guide](docs/USER_GUIDE.md) covers each format, explains
+each decision in the wizard and lists what to try when results are poor.
+
+**Tip:** start with a quick test. In the first wizard step, under **Balance, splits and quick tests**, lower the share
+of training images to 10-20 %. If that run learns something, start the full run.
+
+## If something goes wrong
+
+| Problem | What to do |
+|---|---|
+| Port 8090 is already in use | The app may already be running. To start a second copy, use `training-synth gui --port 8091`. |
+| The first run seems stuck at the start | It is downloading the pretrained weights. This needs internet access once per model. |
+| Training is very slow on a PC with an NVIDIA GPU | PyTorch may not see the GPU. Reinstall it with the CUDA version that matches your driver, from [pytorch.org](https://pytorch.org). |
+| "GPU out of memory" | Training restarts by itself with half the batch. If it keeps happening, choose a smaller model or image size. |
+| An `onnxruntime-gpu` install warning during ONNX export | Ultralytics tries to install that package by itself. If the install fails, the export still finishes, and the speed shown is the CPU speed. |
+| `training-synth dataset import` rejects a zip | The command line needs an unpacked folder. Only the app's import dialog takes a zip. |
 
 ## What it does
 
