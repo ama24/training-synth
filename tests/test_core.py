@@ -45,6 +45,20 @@ def test_run_config_merges_preset_and_explicit_values():
     assert again == cfg
 
 
+def test_zoom_is_off_by_default_but_old_runs_keep_their_zoom():
+    assert _cfg().train_args()["scale"] == 0
+    assert RunConfig.from_dict(_cfg().to_dict()).train_args()["scale"] == 0
+    # a run.yaml from before the change has no defaults_version: it trained with scale 0.5
+    old = _cfg().to_dict()
+    del old["defaults_version"]
+    assert RunConfig.from_dict(old).train_args()["scale"] == 0.5
+    assert RunConfig.from_dict({**old, "aug_preset": "none"}).train_args()["scale"] == 0
+    assert RunConfig.from_dict({**old, "aug_preset": "strong"}).train_args()["scale"] == 0.7
+    assert RunConfig.from_dict({**old, "train": {"scale": 0.0}}).train_args()["scale"] == 0
+    # the 'What the model sees' preview and the wizard start from the 'standard' preset
+    assert params.AUG_PRESETS["standard"]["scale"] == 0
+
+
 def test_models_registry_and_estimates():
     assert models.weights_name("yolo26", "s", "segment") == "yolo26s-seg.pt"
     assert models.weights_name("rtdetr", "l", "detect") == "rtdetr-l.pt"

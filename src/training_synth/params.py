@@ -486,13 +486,18 @@ PARAMS: list[Param] = [
     ),
     Param(
         "scale",
-        "Scale",
+        "Scale (zoom)",
         "augment",
         "float",
-        0.5,
-        "Random zoom in/out by up to this fraction.",
-        "0.5",
+        0.0,
+        "Random zoom in/out by up to this fraction (0.5: objects shown at 50-150 % of their size). "
+        "0 (the default here; Ultralytics' own default is 0.5) turns zoom off, so objects keep "
+        "their real size in pixels.",
+        "0 with a fixed camera; 0.3-0.5 when the distance to the objects varies",
         "robust to object size; too much when the camera distance is fixed.",
+        "object size in pixels stays meaningful: with a fixed camera it can tell classes apart "
+        "that differ only in size (M2 / M2.5). Keep 0.05-0.1 for parts lying at slightly "
+        "different heights.",
         min=0,
         max=0.95,
         step=0.05,
@@ -691,9 +696,27 @@ AUG_PRESETS: dict[str, dict[str, Any]] = {
 AUG_PRESET_HELP = {
     "none": "No changes at all. Only for debugging or when images are already very varied.",
     "light": "Gentle changes. Good when the camera, lighting and distance are fixed (a rig, a production line).",
-    "standard": "Ultralytics' defaults. A good start for most photos.",
+    "standard": "Ultralytics' defaults, but without zoom (scale 0), so objects keep their real size. "
+    "A good start for most photos.",
     "strong": "Heavy changes. For small datasets or very varied real-world conditions; needs more epochs.",
 }
+
+
+# Defaults that changed. A run.yaml stores only the values the user set, so a run saved before a
+# change must keep the old defaults: {defaults version: values that version used}.
+DEFAULTS_VERSION = 2
+OLD_DEFAULTS: dict[int, dict[str, Any]] = {
+    1: {"scale": 0.5},  # until 2026-11: Ultralytics' zoom default
+}
+
+
+def old_defaults(version: int) -> dict[str, Any]:
+    """The values to put back for a run saved with an older defaults version."""
+    out: dict[str, Any] = {}
+    for v in sorted(OLD_DEFAULTS, reverse=True):  # the oldest version wins
+        if version <= v:
+            out.update(OLD_DEFAULTS[v])
+    return out
 
 
 def applies(p: Param, task: str) -> bool:
